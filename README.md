@@ -9,25 +9,15 @@ n'importe quel autre projet Laravel.
 
 ## Installation
 
+Disponible sur [Packagist](https://packagist.org/packages/bamboguirassy/laravel-deploy-supervisor)
+(mise à jour automatique à chaque push/tag via le hook GitHub) :
+
 ```bash
 composer require bamboguirassy/laravel-deploy-supervisor:^1.0
 ```
 
-<details>
-<summary>Installation avant publication sur Packagist (dépôt VCS)</summary>
-
-Si le package n'est pas (encore) sur [packagist.org](https://packagist.org),
-ajoutez le dépôt VCS dans le `composer.json` du projet consommateur :
-
-```json
-"repositories": [
-    { "type": "vcs", "url": "https://github.com/bamboguirassy/laravel-deploy-supervisor.git" }
-]
-```
-
-puis lancez la même commande `composer require` ci-dessus. Une fois publié
-sur Packagist, cette étape n'est plus nécessaire.
-</details>
+Aucune configuration `repositories` (VCS) à ajouter dans le projet
+consommateur — cette commande suffit.
 
 Publier la config et la migration :
 
