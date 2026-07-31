@@ -1,0 +1,31 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create(config('deploy-supervisor.table', 'deploy_supervisor_deploiements'), function (Blueprint $table) {
+            $table->id();
+            $table->uuid('uid')->unique();
+            $table->json('cibles');
+            $table->string('statut')->default('en_cours');
+            $table->foreignId('declenche_par_user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('demarre_le')->useCurrent();
+            $table->timestamp('termine_le')->nullable();
+            $table->json('resultat')->nullable();
+            $table->string('log_path')->nullable();
+            $table->timestamps();
+
+            $table->index(['statut', 'demarre_le']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists(config('deploy-supervisor.table', 'deploy_supervisor_deploiements'));
+    }
+};

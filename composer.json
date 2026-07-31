@@ -1,0 +1,34 @@
+{
+    "name": "bamboguirassy/laravel-deploy-supervisor",
+    "description": "Pipeline de déploiement supervisé pour applications Laravel : git pull + build + reload par étapes configurables, historique en base, suivi temps réel via broadcasting (Reverb/Pusher).",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["laravel", "deploy", "deployment", "supervisor", "horizon", "reverb", "broadcasting"],
+    "authors": [
+        {
+            "name": "Bambo Guirassy"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^10.0|^11.0|^12.0",
+        "illuminate/database": "^10.0|^11.0|^12.0",
+        "illuminate/process": "^10.0|^11.0|^12.0",
+        "illuminate/broadcasting": "^10.0|^11.0|^12.0",
+        "illuminate/queue": "^10.0|^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Bamboguirassy\\DeploySupervisor\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Bamboguirassy\\DeploySupervisor\\DeploySupervisorServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

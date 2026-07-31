@@ -1,0 +1,157 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Table
+    |--------------------------------------------------------------------------
+    |
+    | Nom de la table où sont stockés les déploiements (historique + suivi).
+    | Changez-la si "deploy_supervisor_deploiements" entre en conflit avec
+    | une table déjà existante dans votre projet.
+    */
+    'table' => env('DEPLOY_SUPERVISOR_TABLE', 'deploy_supervisor_deploiements'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Modèle utilisateur
+    |--------------------------------------------------------------------------
+    |
+    | Modèle utilisé pour "déclenché par". Doit avoir une clé primaire
+    | standard ; le formatage affiché (nom, etc.) est personnalisable via
+    | `declenche_par_formatter` ci-dessous.
+    */
+    'user_model' => env('DEPLOY_SUPERVISOR_USER_MODEL', 'App\\Models\\User'),
+
+    /*
+    | Formate l'utilisateur qui a déclenché un déploiement pour l'API —
+    | adaptez selon les colonnes de votre modèle User (name, nom_complet,
+    | uid...).
+    */
+    'declenche_par_formatter' => function ($user) {
+        return [
+            'id' => method_exists($user, 'getKey') ? $user->getKey() : null,
+            'nom' => $user->name ?? $user->nom_complet ?? $user->email ?? (string) $user->getKey(),
+        ];
+    },
+
+    /*
+    |--------------------------------------------------------------------------
+    | Autorisation
+    |--------------------------------------------------------------------------
+    |
+    | Nom de la Gate (définie dans VOTRE application, ex. dans un
+    | ServiceProvider : Gate::define('manage-deploy-supervisor', fn ($user)
+    | => $user->is_admin)) qui protège les routes API et le canal de
+    | diffusion temps réel. Non définie = accès refusé par défaut (échec
+    | fermé), volontairement — ne jamais rendre ce module accessible sans
+    | garde explicite côté application hôte.
+    */
+    'gate' => env('DEPLOY_SUPERVISOR_GATE', 'manage-deploy-supervisor'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Routes API
+    |--------------------------------------------------------------------------
+    |
+    | Le package peut enregistrer ses propres routes (POST /deploiement,
+    | POST /deploiement/search, GET|DELETE /deploiement/{uid}). Désactivez
+    | si vous préférez déclarer vos propres routes qui appellent
+    | DeploiementService directement.
+    */
+    'routes' => [
+        'enabled' => env('DEPLOY_SUPERVISOR_ROUTES', true),
+        'prefix' => env('DEPLOY_SUPERVISOR_ROUTE_PREFIX', 'api/deploiement'),
+        'middleware' => ['api', 'auth:sanctum'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Diffusion temps réel
+    |--------------------------------------------------------------------------
+    |
+    | Canal privé de diffusion de la progression (Reverb, Pusher, ou tout
+    | driver broadcasting compatible). Chaque événement est volontairement
+    | minuscule (jamais de sortie console dedans) pour rester bien en
+    | dessous des limites de payload des serveurs WebSocket (ex. 10 Ko par
+    | défaut sur Reverb) — le détail complet (avec output_tail) reste
+    | toujours en base, à récupérer via l'API le moment venu.
+    */
+    'channel' => env('DEPLOY_SUPERVISOR_CHANNEL', 'deploy-supervisor'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Queue
+    |--------------------------------------------------------------------------
+    |
+    | Queue dédiée pour le job d'exécution du pipeline — isolez-la des
+    | autres queues (un déploiement peut prendre plusieurs minutes).
+    */
+    'queue' => env('DEPLOY_SUPERVISOR_QUEUE', 'deploy'),
+
+    'branch' => env('DEPLOY_SUPERVISOR_GIT_BRANCH', 'main'),
+
+    'timeout' => (int) env('DEPLOY_SUPERVISOR_TIMEOUT', 900),
+
+    /*
+    | Identifiants git optionnels pour l'étape "git pull" : si renseignés,
+    | et que le remote `origin` de la cible est en HTTPS, le pipeline
+    | reconstruit l'URL avec ces identifiants embarqués — uniquement pour
+    | la commande de ce run, jamais écrits dans .git/config. Utile quand le
+    | process qui déploie (ex. un worker de queue sans session interactive)
+    | n'a pas accès à l'agent SSH / au credential helper git de
+    | l'utilisateur ayant cloné le dépôt manuellement.
+    |
+    | DEPLOY_SUPERVISOR_GIT_TOKEN doit être un Personal Access Token (les
+    | plateformes git n'acceptent plus le mot de passe du compte pour les
+    | opérations git), avec le scope minimal lecture seule sur le dépôt.
+    */
+    'git' => [
+        'username' => env('DEPLOY_SUPERVISOR_GIT_USERNAME'),
+        'token' => env('DEPLOY_SUPERVISOR_GIT_TOKEN'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cibles
+    |--------------------------------------------------------------------------
+    |
+    | Chaque cible déclare un dossier (`path`) et une liste ORDONNÉE d'étapes
+    | (`label` + `command`, au format attendu par Illuminate\Support\Facades\
+    | Process::run()). Ajouter, retirer ou réordonner une étape ne touche
+    | jamais le code du package — uniquement ce fichier, propre à chaque
+    | projet consommateur.
+    |
+    | Astuce : sur un VPS avec plusieurs versions de PHP/Node en parallèle
+    | (ex. Plesk), ne jamais laisser `php`/`composer`/`yarn` nu dans une
+    | commande — Process (via un worker de queue, sans shell interactif)
+    | n'hérite d'aucun alias shell et peut résoudre un binaire différent de
+    | celui attendu. Préférez env('DEPLOY_PHP_BIN', 'php') etc. avec le
+    | chemin absolu en production.
+    |
+    | Exemple (backend Laravel + frontend Vite, adaptez à votre projet) :
+    |
+    | 'targets' => [
+    |     'backend' => [
+    |         'path' => env('DEPLOY_BACKEND_FOLDER'),
+    |         'steps' => [
+    |             ['label' => 'git pull', 'command' => ['git', 'pull', 'origin', env('DEPLOY_SUPERVISOR_GIT_BRANCH', 'main')]],
+    |             ['label' => 'composer install', 'command' => ['composer', 'install', '--no-dev', '--optimize-autoloader']],
+    |             ['label' => 'migrate', 'command' => [env('DEPLOY_PHP_BIN', 'php'), 'artisan', 'migrate', '--force']],
+    |             ['label' => 'config cache', 'command' => [env('DEPLOY_PHP_BIN', 'php'), 'artisan', 'config:cache']],
+    |         ],
+    |     ],
+    |     'frontend' => [
+    |         'path' => env('DEPLOY_FRONTEND_FOLDER'),
+    |         'steps' => [
+    |             ['label' => 'git pull', 'command' => ['git', 'pull', 'origin', env('DEPLOY_SUPERVISOR_GIT_BRANCH', 'main')]],
+    |             ['label' => 'yarn install', 'command' => [env('DEPLOY_YARN_BIN', 'yarn'), 'install', '--frozen-lockfile']],
+    |             ['label' => 'build', 'command' => [env('DEPLOY_YARN_BIN', 'yarn'), 'build']],
+    |         ],
+    |     ],
+    | ],
+    */
+    'targets' => [],
+
+];
