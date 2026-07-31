@@ -16,9 +16,6 @@ Disponible sur [Packagist](https://packagist.org/packages/bamboguirassy/laravel-
 composer require bamboguirassy/laravel-deploy-supervisor:^1.0
 ```
 
-Aucune configuration `repositories` (VCS) à ajouter dans le projet
-consommateur — cette commande suffit.
-
 Publier la config et la migration :
 
 ```bash
