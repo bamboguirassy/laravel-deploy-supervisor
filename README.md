@@ -68,10 +68,20 @@ DEPLOY_SUPERVISOR_GIT_TOKEN=
 ### Via l'API (routes enregistrées automatiquement)
 
 ```
-POST   /api/deploiement            Déclenche un déploiement
-POST   /api/deploiement/search     Historique paginé
-GET    /api/deploiement/{uid}      Détail complet (avec sortie console)
-DELETE /api/deploiement/{uid}      Supprime un déploiement (sauf en_cours)
+POST   /api/deploiement                Déclenche un déploiement
+POST   /api/deploiement/search         Historique paginé
+GET    /api/deploiement/environnements Liste des environnements (déduite de config('deploy-supervisor.targets'))
+GET    /api/deploiement/{uid}          Détail complet (avec sortie console)
+DELETE /api/deploiement/{uid}          Supprime un déploiement (sauf en_cours)
+```
+
+`GET /api/deploiement/environnements` retourne `{ code, label }` pour
+chaque cible configurée — s'adapte automatiquement si vous ajoutez ou
+retirez une cible dans `config('deploy-supervisor.targets')`, sans aucun
+changement de code frontend nécessaire :
+
+```json
+{ "success": true, "data": [{ "code": "backend", "label": "Backend" }, { "code": "frontend", "label": "Frontend" }] }
 ```
 
 ### Via la CLI

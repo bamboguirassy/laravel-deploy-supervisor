@@ -117,11 +117,15 @@ return [
     | Cibles
     |--------------------------------------------------------------------------
     |
-    | Chaque cible déclare un dossier (`path`) et une liste ORDONNÉE d'étapes
+    | Chaque cible déclare un `label` optionnel (affiché tel quel côté
+    | frontend — sinon dérivé automatiquement du code, ex. "backend" ->
+    | "Backend"), un dossier (`path`) et une liste ORDONNÉE d'étapes
     | (`label` + `command`, au format attendu par Illuminate\Support\Facades\
-    | Process::run()). Ajouter, retirer ou réordonner une étape ne touche
-    | jamais le code du package — uniquement ce fichier, propre à chaque
-    | projet consommateur.
+    | Process::run()). Ajouter, retirer ou réordonner une étape — ou une
+    | cible entière — ne touche jamais le code du package : la liste des
+    | environnements exposée par `GET /environnements` (et donc les filtres/
+    | boutons de lancement côté frontend) s'adapte automatiquement au nombre
+    | de cibles déclarées ici.
     |
     | Astuce : sur un VPS avec plusieurs versions de PHP/Node en parallèle
     | (ex. Plesk), ne jamais laisser `php`/`composer`/`yarn` nu dans une
@@ -134,6 +138,7 @@ return [
     |
     | 'targets' => [
     |     'backend' => [
+    |         'label' => 'Backend',
     |         'path' => env('DEPLOY_BACKEND_FOLDER'),
     |         'steps' => [
     |             ['label' => 'git pull', 'command' => ['git', 'pull', 'origin', env('DEPLOY_SUPERVISOR_GIT_BRANCH', 'main')]],
@@ -143,6 +148,7 @@ return [
     |         ],
     |     ],
     |     'frontend' => [
+    |         'label' => 'Frontend',
     |         'path' => env('DEPLOY_FRONTEND_FOLDER'),
     |         'steps' => [
     |             ['label' => 'git pull', 'command' => ['git', 'pull', 'origin', env('DEPLOY_SUPERVISOR_GIT_BRANCH', 'main')]],

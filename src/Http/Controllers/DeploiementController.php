@@ -11,10 +11,30 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 
 class DeploiementController extends Controller
 {
     public function __construct(private readonly DeploiementService $deploiementService) {}
+
+    /**
+     * Liste des environnements déployables, dérivée de
+     * config('deploy-supervisor.targets') — jamais codée en dur, pour
+     * accueillir n'importe quel nombre de cibles sans toucher au code.
+     */
+    public function environnements(Request $request): JsonResponse
+    {
+        abort_unless(Gate::forUser($request->user())->allows(config('deploy-supervisor.gate', 'manage-deploy-supervisor')), 403);
+
+        $environnements = collect(config('deploy-supervisor.targets', []))
+            ->map(fn ($cible, $code) => [
+                'code' => $code,
+                'label' => $cible['label'] ?? Str::headline($code),
+            ])
+            ->values();
+
+        return response()->json(['success' => true, 'data' => $environnements]);
+    }
 
     public function trigger(TriggerDeploiementRequest $request): JsonResponse
     {
