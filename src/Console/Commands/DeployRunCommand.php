@@ -56,6 +56,12 @@ class DeployRunCommand extends Command
 
         if (! $sync) {
             $this->info("Déploiement {$deploiement->uid} créé.");
+            $this->comment(
+                'Rappel : ceci ne s\'exécutera que si un worker (Horizon ou `queue:work`) '
+                . 'écoute la queue "' . config('deploy-supervisor.queue', 'deploy') . '". '
+                . 'Sans ça, le job reste en attente silencieuse — voir le README, section '
+                . '"Prérequis : file d\'attente".'
+            );
 
             return self::SUCCESS;
         }

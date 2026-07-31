@@ -24,6 +24,52 @@ php artisan vendor:publish --tag=deploy-supervisor-migrations
 php artisan migrate
 ```
 
+## Prérequis : file d'attente (Horizon ou `queue:work`)
+
+⚠️ **Étape facile à oublier, qui casse tout en silence.** Chaque
+déploiement s'exécute dans un job (`RunDeploiementJob`) dispatché sur la
+queue `config('deploy-supervisor.queue')` (par défaut `deploy`). Si
+**aucun worker n'écoute cette queue**, `POST /deploiement` répond quand
+même `202 Accepted` — mais rien ne s'exécute jamais. Le job reste en
+attente silencieuse dans Redis, sans erreur visible ni côté API ni côté
+logs applicatifs.
+
+**Avec Horizon**, ajoutez la queue à un supervisor de `config/horizon.php` :
+
+```php
+'environments' => [
+    'production' => [
+        'supervisor-deploy' => [
+            'connection' => 'redis',
+            'queue' => ['deploy'],
+            'balance' => 'simple',
+            'maxProcesses' => 1,
+            'tries' => 1,
+            // Un déploiement peut prendre plusieurs minutes — laisser de
+            // la marge par rapport à `config('deploy-supervisor.timeout')`.
+            'timeout' => 960,
+        ],
+        // ... vos autres supervisors (default, notifications, etc.)
+    ],
+],
+```
+
+Puis redémarrer Horizon (`php artisan horizon:terminate`, Supervisor le
+relance) pour qu'il prenne en compte le nouveau supervisor.
+
+**Sans Horizon**, un worker classique dédié suffit (à superviser vous-même,
+ex. avec Supervisor) :
+
+```bash
+php artisan queue:work redis --queue=deploy --timeout=960 --tries=1
+```
+
+Vérifiez que ça fonctionne en lançant un déploiement de test
+(`php artisan deploy-supervisor:run --sync` contourne la queue et exécute
+en synchrone, utile pour confirmer que le pipeline lui-même marche — mais
+ne remplace pas ce test en mode asynchrone normal, via l'API ou sans
+`--sync`, pour valider que le worker écoute bien).
+
 ## Configuration minimale
 
 Dans `config/deploy-supervisor.php` (publié), renseigner au moins :

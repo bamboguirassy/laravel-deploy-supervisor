@@ -102,6 +102,21 @@ return [
     |
     | Queue dédiée pour le job d'exécution du pipeline — isolez-la des
     | autres queues (un déploiement peut prendre plusieurs minutes).
+    |
+    | ⚠️ Cette queue doit être ÉCOUTÉE par un worker pour que quoi que ce
+    | soit se passe réellement. Avec Horizon, ajoutez-la à la liste `queue`
+    | d'un supervisor dans config/horizon.php :
+    |
+    |     'supervisor-deploy' => [
+    |         'connection' => 'redis',
+    |         'queue' => ['deploy'],
+    |         'balance' => 'simple',
+    |         'maxProcesses' => 1,
+    |     ],
+    |
+    | Sans worker sur cette queue, POST /deploiement répond 202 mais RIEN ne
+    | se passe jamais — le job reste en attente silencieuse dans Redis, sans
+    | erreur visible. Voir le README, section "Prérequis : file d'attente".
     */
     'queue' => env('DEPLOY_SUPERVISOR_QUEUE', 'deploy'),
 
