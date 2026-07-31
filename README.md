@@ -9,18 +9,25 @@ n'importe quel autre projet Laravel.
 
 ## Installation
 
-Dans le projet consommateur, ajouter le dépôt VCS puis le package :
+```bash
+composer require bamboguirassy/laravel-deploy-supervisor:^1.0
+```
+
+<details>
+<summary>Installation avant publication sur Packagist (dépôt VCS)</summary>
+
+Si le package n'est pas (encore) sur [packagist.org](https://packagist.org),
+ajoutez le dépôt VCS dans le `composer.json` du projet consommateur :
 
 ```json
-// composer.json du projet
 "repositories": [
     { "type": "vcs", "url": "https://github.com/bamboguirassy/laravel-deploy-supervisor.git" }
 ]
 ```
 
-```bash
-composer require bamboguirassy/laravel-deploy-supervisor:^1.0
-```
+puis lancez la même commande `composer require` ci-dessus. Une fois publié
+sur Packagist, cette étape n'est plus nécessaire.
+</details>
 
 Publier la config et la migration :
 
@@ -102,11 +109,11 @@ WebSocket (10 Ko par défaut sur Reverb) :
 
 - `deploiement.etape` — `{ uid, cible, label, statut, exit_code, duration_ms }`
 - `deploiement.cible` — `{ uid, cible, statut }`
-- `deploiement.deploiement` — `{ uid, statut, termine_le }`
+- `deploiement.termine` — `{ uid, statut, termine_le }`
 
 Le détail complet (avec la sortie console de chaque étape, `output_tail`)
 reste toujours en base — à récupérer via `GET /api/deploiement/{uid}` côté
-frontend, typiquement après réception de l'événement `deploiement.deploiement`.
+frontend, typiquement après réception de l'événement `deploiement.termine`.
 
 Exemple de client (pusher-js, adaptable à laravel-echo) :
 
@@ -114,7 +121,7 @@ Exemple de client (pusher-js, adaptable à laravel-echo) :
 const channel = pusher.subscribe('private-deploy-supervisor')
 channel.bind('deploiement.etape', (payload) => { /* mettre à jour l'étape */ })
 channel.bind('deploiement.cible', (payload) => { /* mettre à jour la cible */ })
-channel.bind('deploiement.deploiement', (payload) => {
+channel.bind('deploiement.termine', (payload) => {
   // aller chercher le détail complet, y compris en cas d'échec
   fetch(`/api/deploiement/${payload.uid}`)
 })

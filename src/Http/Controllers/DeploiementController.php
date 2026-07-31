@@ -32,16 +32,19 @@ class DeploiementController extends Controller
 
     public function search(SearchDeploiementRequest $request): JsonResponse
     {
-        $paginator = $this->deploiementService->search($request->validated());
+        $paginator = $this->deploiementService->search($request->validated())
+            ->through(fn ($deploiement) => new DeploiementResource($deploiement));
 
         return response()->json([
             'success' => true,
-            'data' => DeploiementResource::collection($paginator->through(fn ($d) => $d)),
+            'data' => $paginator->items(),
             'meta' => [
                 'current_page' => $paginator->currentPage(),
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
                 'last_page' => $paginator->lastPage(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
             ],
         ]);
     }

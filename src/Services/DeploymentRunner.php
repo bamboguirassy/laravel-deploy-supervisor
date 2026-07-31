@@ -49,7 +49,7 @@ class DeploymentRunner
         $this->sauvegarder($deploiement, $resultat);
         $this->diffuser(new DeploiementProgression(
             uid: $deploiement->uid,
-            type: 'deploiement',
+            type: 'termine',
             statut: $globalStatut,
             termineLe: $deploiement->termine_le->toIso8601String(),
         ));
