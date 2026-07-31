@@ -26,15 +26,17 @@ return [
 
     /*
     | Formate l'utilisateur qui a déclenché un déploiement pour l'API —
-    | adaptez selon les colonnes de votre modèle User (name, nom_complet,
-    | uid...).
+    | nom d'une classe invokable (`__invoke($user): array`), PAS une closure :
+    | `php artisan config:cache` sérialise la config avec var_export(), qui
+    | ne sait pas représenter une Closure ("Call to undefined method
+    | Closure::__set_state()"). Un nom de classe est une simple chaîne, donc
+    | sans souci — résolue via le conteneur.
+    |
+    | Pour personnaliser (adapter aux colonnes de votre modèle User), créez
+    | votre propre classe avec la même signature et réglez cette valeur sur
+    | son nom, ex. 'declenche_par_formatter' => \App\Support\MonFormatter::class.
     */
-    'declenche_par_formatter' => function ($user) {
-        return [
-            'id' => method_exists($user, 'getKey') ? $user->getKey() : null,
-            'nom' => $user->name ?? $user->nom_complet ?? $user->email ?? (string) $user->getKey(),
-        ];
-    },
+    'declenche_par_formatter' => \Bamboguirassy\DeploySupervisor\Support\DefaultDeclencheParFormatter::class,
 
     /*
     |--------------------------------------------------------------------------

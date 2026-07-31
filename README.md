@@ -43,6 +43,26 @@ Dans `config/deploy-supervisor.php` (publié), renseigner au moins :
 
 4. **`user_model`** — le modèle User de votre application (par défaut
    `App\Models\User`).
+5. **`declenche_par_formatter`** — nom d'une classe invokable
+   (`__invoke($user): array`) qui formate l'utilisateur "déclenché par"
+   pour l'API. **Doit être un nom de classe (string), jamais une closure**
+   — `php artisan config:cache` sérialise la config avec `var_export()`,
+   qui ne sait pas représenter une `Closure`. Créez la vôtre si vos
+   colonnes User diffèrent (`name`/`nom_complet`/`uid`...) :
+
+   ```php
+   // App\Support\DeclencheParFormatter.php
+   class DeclencheParFormatter
+   {
+       public function __invoke($user): array
+       {
+           return ['uid' => $user->uid, 'nom_complet' => $user->nom_complet];
+       }
+   }
+
+   // config/deploy-supervisor.php
+   'declenche_par_formatter' => \App\Support\DeclencheParFormatter::class,
+   ```
 
 ## Sécurité
 
