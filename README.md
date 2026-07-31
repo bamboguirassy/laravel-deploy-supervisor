@@ -32,18 +32,44 @@ Dans `config/deploy-supervisor.php` (publié), renseigner au moins :
    publié ; définit pour chaque cible (`backend`, `frontend`, ou tout autre
    nom) un dossier (`path`) et une liste ORDONNÉE d'étapes (`label` +
    `command`).
-2. **`gate`** — nom d'une Gate à définir dans **votre** application (ex.
-   dans un `ServiceProvider`) :
+2. **`routes.middleware`** — voir la section **Sécurité** ci-dessous, à lire
+   avant toute mise en production.
+3. **`gate`** — protège uniquement le canal de diffusion temps réel (voir
+   Sécurité) :
 
    ```php
    Gate::define('manage-deploy-supervisor', fn ($user) => $user->is_admin);
    ```
 
-   Sans cette Gate définie, l'accès est refusé par défaut (échec fermé) —
-   ni les routes API, ni le canal de diffusion ne sont accessibles.
-
-3. **`user_model`** — le modèle User de votre application (par défaut
+4. **`user_model`** — le modèle User de votre application (par défaut
    `App\Models\User`).
+
+## Sécurité
+
+⚠️ **Les routes du package ne portent par défaut AUCUNE vérification de
+permission/rôle** — uniquement `config('deploy-supervisor.routes.middleware')`
+(par défaut `['api', 'auth:sanctum']`, donc juste "être authentifié"). C'est
+volontaire : ce package ne peut pas deviner votre logique d'autorisation
+(rôles, permissions, `is_admin`...). **Sans action de votre part, n'importe
+quel utilisateur authentifié peut déclencher, consulter et supprimer des
+déploiements.**
+
+À vous d'ajouter votre propre garde, typiquement l'une de ces deux options :
+
+- **Ajouter votre middleware** à `config('deploy-supervisor.routes.middleware')`
+  (ex. `['api', 'auth:sanctum', 'can:manage-deploy-supervisor']`, ou un
+  middleware maison) ;
+- **Désactiver `routes.enabled`** et déclarer vous-même ces routes dans
+  votre application, dans le groupe de middlewares de votre choix, en
+  pointant vers `Bamboguirassy\DeploySupervisor\Http\Controllers\DeploiementController`
+  (c'est l'approche utilisée par TCRM, qui a des middlewares applicatifs —
+  `check.user.enabled`, `resolve.entreprise`, `ensure.admin` — que le
+  package ne peut pas connaître).
+
+Le canal de diffusion temps réel (`config('deploy-supervisor.channel')`),
+lui, reste protégé par la Gate `config('deploy-supervisor.gate')` — un canal
+de broadcasting a besoin d'un callback booléen quoi qu'il arrive, donc ce
+point-là n'est pas concerné par le choix ci-dessus.
 
 Variables d'environnement utiles (voir les commentaires du fichier de
 config pour le détail de chacune) :

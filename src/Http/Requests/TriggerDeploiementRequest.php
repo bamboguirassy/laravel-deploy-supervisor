@@ -3,13 +3,17 @@
 namespace Bamboguirassy\DeploySupervisor\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Support\Facades\Gate;
 
 class TriggerDeploiementRequest extends FormRequest
 {
+    /**
+     * Aucune vérification de permission ici — seule l'authentification
+     * compte (middleware de `config('deploy-supervisor.routes.middleware')`).
+     * Voir l'avertissement de sécurité dans DeploiementController.
+     */
     public function authorize(): bool
     {
-        return Gate::forUser($this->user())->allows(config('deploy-supervisor.gate', 'manage-deploy-supervisor'));
+        return true;
     }
 
     public function rules(): array

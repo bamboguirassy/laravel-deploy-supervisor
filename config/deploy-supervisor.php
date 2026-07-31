@@ -41,12 +41,12 @@ return [
     | Autorisation
     |--------------------------------------------------------------------------
     |
-    | Nom de la Gate (définie dans VOTRE application, ex. dans un
-    | ServiceProvider : Gate::define('manage-deploy-supervisor', fn ($user)
-    | => $user->is_admin)) qui protège les routes API et le canal de
-    | diffusion temps réel. Non définie = accès refusé par défaut (échec
-    | fermé), volontairement — ne jamais rendre ce module accessible sans
-    | garde explicite côté application hôte.
+    | ⚠️ Ne protège PLUS les routes HTTP (voir "Routes API" ci-dessous) —
+    | uniquement le canal de diffusion temps réel, qui a besoin d'un
+    | callback booléen quoi qu'il arrive. Nom de la Gate à définir dans
+    | VOTRE application (ex. dans un ServiceProvider :
+    | Gate::define('manage-deploy-supervisor', fn ($user) => $user->is_admin)).
+    | Non définie = canal refusé par défaut (échec fermé).
     */
     'gate' => env('DEPLOY_SUPERVISOR_GATE', 'manage-deploy-supervisor'),
 
@@ -55,10 +55,23 @@ return [
     | Routes API
     |--------------------------------------------------------------------------
     |
-    | Le package peut enregistrer ses propres routes (POST /deploiement,
-    | POST /deploiement/search, GET|DELETE /deploiement/{uid}). Désactivez
-    | si vous préférez déclarer vos propres routes qui appellent
-    | DeploiementService directement.
+    | Le package enregistre ses propres routes (POST /deploiement,
+    | POST /deploiement/search, GET /deploiement/environnements,
+    | GET|DELETE /deploiement/{uid}).
+    |
+    | ⚠️ ATTENTION SÉCURITÉ : ces routes ne portent AUCUNE vérification de
+    | permission/rôle — seul `middleware` ci-dessous s'applique (par défaut,
+    | juste l'authentification via `auth:sanctum`). C'est volontaire : ce
+    | package ne peut pas deviner votre logique d'autorisation (rôles,
+    | permissions, is_admin...). AJOUTEZ VOTRE PROPRE MIDDLEWARE
+    | D'AUTORISATION à ce tableau avant d'exposer ce module en production —
+    | sans ça, n'importe quel utilisateur authentifié peut déclencher,
+    | consulter et supprimer des déploiements. Voir le README, section
+    | "Sécurité".
+    |
+    | Désactivez `enabled` si vous préférez déclarer vous-même ces routes
+    | (dans le groupe de middlewares de votre choix) en pointant vers
+    | Bamboguirassy\DeploySupervisor\Http\Controllers\DeploiementController.
     */
     'routes' => [
         'enabled' => env('DEPLOY_SUPERVISOR_ROUTES', true),
