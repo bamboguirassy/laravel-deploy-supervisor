@@ -2,10 +2,27 @@
 
 Pipeline de déploiement supervisé pour applications Laravel : `git pull` +
 build + reload par étapes **configurables**, historique en base, suivi
-temps réel via broadcasting (Reverb, Pusher, ou tout driver compatible).
+temps réel via broadcasting, déclenchement automatique par webhook
+(GitHub, GitLab, Bitbucket) et notifications email.
 
 Extrait du projet TCRM, généricisé pour être réutilisable tel quel dans
 n'importe quel autre projet Laravel.
+
+**Compatibilité** : PHP 8.2+, Laravel 10, 11, 12 ou 13.
+
+## Fonctionnalités
+
+- **Pipeline configurable** par étapes ordonnées (`git pull`, `composer
+  install`, `migrate`, `yarn build`...), une ou plusieurs cibles, sans
+  toucher au code du package — tout passe par `config/deploy-supervisor.php`.
+- **Historique complet en base**, avec la sortie console de chaque étape.
+- **Suivi temps réel** via broadcasting (Reverb, Pusher, ou tout driver
+  compatible), sans jamais exposer la sortie console sur le canal public.
+- **Déclenchement automatique** sur push, via webhook GitHub, GitLab ou
+  Bitbucket.
+- **Notifications email** au démarrage et à la fin de chaque déploiement.
+- **CLI Artisan** pour déployer, générer un secret de webhook, ou en
+  récupérer l'URL complète.
 
 ## Installation
 
@@ -32,7 +49,8 @@ queue `config('deploy-supervisor.queue')` (par défaut `deploy`). Si
 **aucun worker n'écoute cette queue**, `POST /deploiement` répond quand
 même `202 Accepted` — mais rien ne s'exécute jamais. Le job reste en
 attente silencieuse dans Redis, sans erreur visible ni côté API ni côté
-logs applicatifs.
+logs applicatifs. Les notifications email (voir plus bas) partagent cette
+même queue : sans worker, elles ne partent pas non plus.
 
 **Avec Horizon**, ajoutez la queue à un supervisor de `config/horizon.php` :
 
@@ -77,7 +95,8 @@ Dans `config/deploy-supervisor.php` (publié), renseigner au moins :
 1. **`targets`** — un exemple complet est en commentaire dans le fichier
    publié ; définit pour chaque cible (`backend`, `frontend`, ou tout autre
    nom) un dossier (`path`) et une liste ORDONNÉE d'étapes (`label` +
-   `command`).
+   `command`). Une "cible" ici est le même concept que ce que l'API expose
+   comme "environnement" via `GET /environnements` (voir "Utilisation").
 2. **`routes.middleware`** — voir la section **Sécurité** ci-dessous, à lire
    avant toute mise en production.
 3. **`gate`** — protège uniquement le canal de diffusion temps réel (voir
@@ -110,6 +129,34 @@ Dans `config/deploy-supervisor.php` (publié), renseigner au moins :
    'declenche_par_formatter' => \App\Support\DeclencheParFormatter::class,
    ```
 
+### Variables d'environnement
+
+Variables de base (voir les commentaires du fichier de config pour le
+détail de chacune). Les variables spécifiques au webhook et aux
+notifications email sont documentées dans leurs sections dédiées
+ci-dessous, pas ici.
+
+```env
+DEPLOY_SUPERVISOR_TABLE=deploy_supervisor_deploiements
+DEPLOY_SUPERVISOR_USER_MODEL=App\Models\User
+DEPLOY_SUPERVISOR_GATE=manage-deploy-supervisor
+
+# false pour désactiver complètement les routes du package (voir Sécurité)
+DEPLOY_SUPERVISOR_ROUTES=true
+DEPLOY_SUPERVISOR_ROUTE_PREFIX=api/deploiement
+
+DEPLOY_SUPERVISOR_CHANNEL=deploy-supervisor
+DEPLOY_SUPERVISOR_QUEUE=deploy
+DEPLOY_SUPERVISOR_GIT_BRANCH=main
+DEPLOY_SUPERVISOR_TIMEOUT=900
+
+# Optionnel — authentification git du pipeline (remote HTTPS uniquement) :
+# utile si le worker de queue n'a pas accès à l'agent SSH / au credential
+# helper de l'utilisateur ayant cloné le dépôt manuellement.
+DEPLOY_SUPERVISOR_GIT_USERNAME=
+DEPLOY_SUPERVISOR_GIT_TOKEN=
+```
+
 ## Sécurité
 
 ⚠️ **Les routes du package ne portent par défaut AUCUNE vérification de
@@ -125,49 +172,94 @@ déploiements.**
 - **Ajouter votre middleware** à `config('deploy-supervisor.routes.middleware')`
   (ex. `['api', 'auth:sanctum', 'can:manage-deploy-supervisor']`, ou un
   middleware maison) ;
-- **Désactiver `routes.enabled`** et déclarer vous-même ces routes dans
-  votre application, dans le groupe de middlewares de votre choix, en
-  pointant vers `Bamboguirassy\DeploySupervisor\Http\Controllers\DeploiementController`
+- **Désactiver les routes** (`DEPLOY_SUPERVISOR_ROUTES=false`) et les
+  déclarer vous-même dans votre application, dans le groupe de middlewares
+  de votre choix, en pointant vers
+  `Bamboguirassy\DeploySupervisor\Http\Controllers\DeploiementController`
   (c'est l'approche utilisée par TCRM, qui a des middlewares applicatifs —
   `check.user.enabled`, `resolve.entreprise`, `ensure.admin` — que le
   package ne peut pas connaître).
 
 Le canal de diffusion temps réel (`config('deploy-supervisor.channel')`),
-lui, reste protégé par la Gate `config('deploy-supervisor.gate')` — un canal
-de broadcasting a besoin d'un callback booléen quoi qu'il arrive, donc ce
-point-là n'est pas concerné par le choix ci-dessus.
+lui, reste protégé par la Gate `DEPLOY_SUPERVISOR_GATE` — un canal de
+broadcasting a besoin d'un callback booléen quoi qu'il arrive, donc ce
+point-là n'est pas concerné par le choix ci-dessus. Non définie côté
+application hôte = canal refusé par défaut (échec fermé).
 
-Variables d'environnement utiles (voir les commentaires du fichier de
-config pour le détail de chacune) :
+## Utilisation
 
-```env
-DEPLOY_SUPERVISOR_TABLE=deploy_supervisor_deploiements
-DEPLOY_SUPERVISOR_GATE=manage-deploy-supervisor
-DEPLOY_SUPERVISOR_CHANNEL=deploy-supervisor
-DEPLOY_SUPERVISOR_QUEUE=deploy
-DEPLOY_SUPERVISOR_GIT_BRANCH=main
-DEPLOY_SUPERVISOR_TIMEOUT=900
+### Via l'API (routes enregistrées automatiquement)
 
-# Optionnel — authentification git du pipeline (remote HTTPS uniquement) :
-# utile si le worker de queue n'a pas accès à l'agent SSH / au credential
-# helper de l'utilisateur ayant cloné le dépôt manuellement.
-DEPLOY_SUPERVISOR_GIT_USERNAME=
-DEPLOY_SUPERVISOR_GIT_TOKEN=
+```
+POST   /api/deploiement                Déclenche un déploiement
+POST   /api/deploiement/search         Historique paginé
+GET    /api/deploiement/environnements Liste des environnements (déduite de config('deploy-supervisor.targets'))
+GET    /api/deploiement/{uid}          Détail complet (avec sortie console)
+DELETE /api/deploiement/{uid}          Supprime un déploiement (sauf en_cours)
+```
 
-# Optionnel — webhook de déclenchement automatique (voir section "Webhook")
-DEPLOY_SUPERVISOR_WEBHOOK_ENABLED=false
-DEPLOY_SUPERVISOR_WEBHOOK_SECRET=
+`GET /api/deploiement/environnements` retourne `{ code, label }` pour
+chaque cible configurée — s'adapte automatiquement si vous ajoutez ou
+retirez une cible dans `config('deploy-supervisor.targets')`, sans aucun
+changement de code frontend nécessaire :
 
-# Optionnel — notifications email (voir section "Notifications par email")
-DEPLOY_SUPERVISOR_MAIL_ENABLED=false
-DEPLOY_SUPERVISOR_MAIL_TO=
-DEPLOY_SUPERVISOR_FRONTEND_DEPLOIEMENT_PAGE_URL=
+```json
+{ "success": true, "data": [{ "code": "backend", "label": "Backend" }, { "code": "frontend", "label": "Frontend" }] }
+```
+
+### Via la CLI
+
+```bash
+# Déploie toutes les cibles configurées, en file d'attente
+php artisan deploy-supervisor:run
+
+# Une seule cible
+php artisan deploy-supervisor:run --cible=backend
+
+# Synchrone — attend la fin dans ce process (secours si le worker de queue est down)
+php artisan deploy-supervisor:run --sync
+```
+
+## Suivi temps réel
+
+Le pipeline diffuse 3 types d'événements légers sur le canal privé
+`deploy-supervisor` (nom configurable) — **jamais de sortie console
+dedans**, pour rester bien en dessous des limites de payload des serveurs
+WebSocket (10 Ko par défaut sur Reverb) :
+
+- `deploiement.etape` — `{ uid, cible, label, statut, exit_code, duration_ms }`
+- `deploiement.cible` — `{ uid, cible, statut }`
+- `deploiement.termine` — `{ uid, statut, termine_le }`
+
+Le détail complet (avec la sortie console de chaque étape, `output_tail`)
+reste toujours en base — à récupérer via `GET /api/deploiement/{uid}` côté
+frontend, typiquement après réception de l'événement `deploiement.termine`.
+
+Exemple de client (pusher-js, adaptable à laravel-echo) :
+
+```ts
+const channel = pusher.subscribe('private-deploy-supervisor')
+channel.bind('deploiement.etape', (payload) => { /* mettre à jour l'étape */ })
+channel.bind('deploiement.cible', (payload) => { /* mettre à jour la cible */ })
+channel.bind('deploiement.termine', (payload) => {
+  // aller chercher le détail complet, y compris en cas d'échec
+  fetch(`/api/deploiement/${payload.uid}`)
+})
 ```
 
 ## Webhook (déclenchement automatique sur push)
 
-Désactivé par défaut. Une fois `DEPLOY_SUPERVISOR_WEBHOOK_ENABLED=true` et
-`DEPLOY_SUPERVISOR_WEBHOOK_SECRET` renseigné, le package expose :
+Désactivé par défaut :
+
+```env
+DEPLOY_SUPERVISOR_WEBHOOK_ENABLED=true
+DEPLOY_SUPERVISOR_WEBHOOK_SECRET=
+
+# Optionnel — change le préfixe des routes webhook (défaut affiché ici)
+DEPLOY_SUPERVISOR_WEBHOOK_ROUTE_PREFIX=api/deploiement/webhook
+```
+
+Une fois activé, le package expose :
 
 ```
 POST /api/deploiement/webhook/github
@@ -180,6 +272,16 @@ déclenche un déploiement asynchrone (queue) de **toutes** les cibles
 configurées — même comportement que `POST /api/deploiement` sans `cibles`.
 Toute autre branche est ignorée (réponse `200`, aucun déploiement créé).
 
+⚠️ Ces routes ne portent PAS le middleware `auth:sanctum` (un webhook n'a
+pas de session utilisateur) — l'authenticité est vérifiée par
+signature/token propre à chaque fournisseur. **Sans `secret` configuré,
+aucune requête n'est acceptée** (échec fermé).
+
+Deux requêtes identiques (même commit) envoyées à quelques secondes
+d'intervalle — fréquent en cas de retry réseau côté fournisseur — ne
+déclenchent qu'un seul déploiement (déduplication par verrou de 30s sur le
+SHA du commit).
+
 ### Générer un secret fort
 
 ```bash
@@ -190,10 +292,9 @@ Génère un secret aléatoire de 32 octets et l'écrit directement dans
 `DEPLOY_SUPERVISOR_WEBHOOK_SECRET` dans `.env` (même principe que
 `php artisan key:generate`) — demande confirmation si une valeur existe déjà
 (`--force` pour l'écraser sans confirmation, `--show` pour juste afficher
-une valeur générée sans toucher à `.env`). Renseignez ensuite cette même
-valeur côté fournisseur git (voir ci-dessous). Ne la réutilisez pas
-ailleurs, et ne la commitez jamais. La commande affiche aussi, juste après,
-l'URL complète de chaque fournisseur (voir ci-dessous) prête à copier.
+une valeur générée sans toucher à `.env`). Ne la réutilisez pas ailleurs,
+et ne la commitez jamais. La commande affiche aussi, juste après, l'URL
+complète de chaque fournisseur (voir ci-dessous) prête à copier.
 
 ### Récupérer l'URL complète à configurer
 
@@ -214,16 +315,6 @@ Pour Bitbucket, le secret est directement inclus dans l'URL affichée (voir
 la section Bitbucket ci-dessous, qui explique pourquoi). Assurez-vous que
 `APP_URL` (dans `.env`) correspond bien à l'URL publique réelle de votre
 application avant de copier ces URLs chez le fournisseur.
-
-⚠️ Ces routes ne portent PAS le middleware `auth:sanctum` (un webhook n'a
-pas de session utilisateur) — l'authenticité est vérifiée par
-signature/token propre à chaque fournisseur. **Sans `secret` configuré,
-aucune requête n'est acceptée** (échec fermé).
-
-Deux requêtes identiques (même commit) envoyées à quelques secondes
-d'intervalle — fréquent en cas de retry réseau côté fournisseur — ne
-déclenchent qu'un seul déploiement (déduplication par verrou de 30s sur le
-SHA du commit).
 
 ### GitHub
 
@@ -297,67 +388,6 @@ DEPLOY_SUPERVISOR_FRONTEND_DEPLOIEMENT_PAGE_URL=https://votre-app.example/deploi
   `php artisan vendor:publish --tag=deploy-supervisor-views` (copiées dans
   `resources/views/vendor/deploy-supervisor/`).
 
-## Utilisation
-
-### Via l'API (routes enregistrées automatiquement)
-
-```
-POST   /api/deploiement                Déclenche un déploiement
-POST   /api/deploiement/search         Historique paginé
-GET    /api/deploiement/environnements Liste des environnements (déduite de config('deploy-supervisor.targets'))
-GET    /api/deploiement/{uid}          Détail complet (avec sortie console)
-DELETE /api/deploiement/{uid}          Supprime un déploiement (sauf en_cours)
-```
-
-`GET /api/deploiement/environnements` retourne `{ code, label }` pour
-chaque cible configurée — s'adapte automatiquement si vous ajoutez ou
-retirez une cible dans `config('deploy-supervisor.targets')`, sans aucun
-changement de code frontend nécessaire :
-
-```json
-{ "success": true, "data": [{ "code": "backend", "label": "Backend" }, { "code": "frontend", "label": "Frontend" }] }
-```
-
-### Via la CLI
-
-```bash
-# Déploie toutes les cibles configurées, en file d'attente
-php artisan deploy-supervisor:run
-
-# Une seule cible
-php artisan deploy-supervisor:run --cible=backend
-
-# Synchrone — attend la fin dans ce process (secours si le worker de queue est down)
-php artisan deploy-supervisor:run --sync
-```
-
-## Suivi temps réel
-
-Le pipeline diffuse 3 types d'événements légers sur le canal privé
-`deploy-supervisor` (nom configurable) — **jamais de sortie console
-dedans**, pour rester bien en dessous des limites de payload des serveurs
-WebSocket (10 Ko par défaut sur Reverb) :
-
-- `deploiement.etape` — `{ uid, cible, label, statut, exit_code, duration_ms }`
-- `deploiement.cible` — `{ uid, cible, statut }`
-- `deploiement.termine` — `{ uid, statut, termine_le }`
-
-Le détail complet (avec la sortie console de chaque étape, `output_tail`)
-reste toujours en base — à récupérer via `GET /api/deploiement/{uid}` côté
-frontend, typiquement après réception de l'événement `deploiement.termine`.
-
-Exemple de client (pusher-js, adaptable à laravel-echo) :
-
-```ts
-const channel = pusher.subscribe('private-deploy-supervisor')
-channel.bind('deploiement.etape', (payload) => { /* mettre à jour l'étape */ })
-channel.bind('deploiement.cible', (payload) => { /* mettre à jour la cible */ })
-channel.bind('deploiement.termine', (payload) => {
-  // aller chercher le détail complet, y compris en cas d'échec
-  fetch(`/api/deploiement/${payload.uid}`)
-})
-```
-
 ## Robustesse
 
 - Toute exception pendant une étape (ex. `ProcessTimedOutException` si une
@@ -367,3 +397,5 @@ channel.bind('deploiement.termine', (payload) => {
 - La diffusion temps réel est un confort d'UX, pas une garantie : si le
   serveur de broadcasting est injoignable, le pipeline (et son statut
   final en base) n'en dépend pas.
+- Les notifications email suivent la même règle : une erreur d'envoi est
+  journalisée, jamais fatale pour le pipeline.
