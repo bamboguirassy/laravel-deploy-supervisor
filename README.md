@@ -192,7 +192,28 @@ Génère un secret aléatoire de 32 octets et l'écrit directement dans
 (`--force` pour l'écraser sans confirmation, `--show` pour juste afficher
 une valeur générée sans toucher à `.env`). Renseignez ensuite cette même
 valeur côté fournisseur git (voir ci-dessous). Ne la réutilisez pas
-ailleurs, et ne la commitez jamais.
+ailleurs, et ne la commitez jamais. La commande affiche aussi, juste après,
+l'URL complète de chaque fournisseur (voir ci-dessous) prête à copier.
+
+### Récupérer l'URL complète à configurer
+
+```bash
+php artisan deploy-supervisor:webhook-url
+```
+
+Affiche l'URL complète de chaque fournisseur, construite à partir de
+`APP_URL` (donc jamais à reconstruire à la main) :
+
+```
+github    : https://votre-app.example/api/deploiement/webhook/github
+gitlab    : https://votre-app.example/api/deploiement/webhook/gitlab
+bitbucket : https://votre-app.example/api/deploiement/webhook/bitbucket?secret=...
+```
+
+Pour Bitbucket, le secret est directement inclus dans l'URL affichée (voir
+la section Bitbucket ci-dessous, qui explique pourquoi). Assurez-vous que
+`APP_URL` (dans `.env`) correspond bien à l'URL publique réelle de votre
+application avant de copier ces URLs chez le fournisseur.
 
 ⚠️ Ces routes ne portent PAS le middleware `auth:sanctum` (un webhook n'a
 pas de session utilisateur) — l'authenticité est vérifiée par

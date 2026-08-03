@@ -95,7 +95,12 @@ la Gate `config('deploy-supervisor.gate')`.
   fournisseur, résolu par nom de classe via `webhook.providers` — même
   pattern que `declenche_par_formatter`). Ne déclenche que si la branche
   pushée correspond à `config('deploy-supervisor.branch')` ; dédup par
-  `Cache::lock()` sur le SHA du commit.
+  `Cache::lock()` sur le SHA du commit. `WebhookUrlBuilder`
+  (`src/Support/Webhook/WebhookUrlBuilder.php`) construit l'URL complète de
+  chaque fournisseur à partir de `APP_URL` (via `url()`) — utilisé par les
+  commandes `deploy-supervisor:webhook-secret` et
+  `deploy-supervisor:webhook-url`, pour éviter à l'utilisateur de la
+  reconstruire à la main.
 - **Notifications email** (`src/Services/DeploymentNotifier.php`,
   `src/Mail/*`, `resources/views/mail/*`) — désactivées par défaut
   (`notifications.mail.enabled`), envoyées au démarrage et à la fin de

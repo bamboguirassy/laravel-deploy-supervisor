@@ -2,6 +2,7 @@
 
 namespace Bamboguirassy\DeploySupervisor\Console\Commands;
 
+use Bamboguirassy\DeploySupervisor\Support\Webhook\WebhookUrlBuilder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
@@ -26,6 +27,7 @@ class WebhookSecretCommand extends Command
 
         if ($this->option('show')) {
             $this->line($secret);
+            $this->afficherUrls($secret);
 
             return self::SUCCESS;
         }
@@ -57,8 +59,19 @@ class WebhookSecretCommand extends Command
             'Renseignez cette même valeur côté fournisseur git (secret du webhook GitHub/GitLab, '
             . 'ou en query string ?secret=... pour Bitbucket) — voir le README, section "Webhook".'
         );
+        $this->afficherUrls($secret);
 
         return self::SUCCESS;
+    }
+
+    private function afficherUrls(string $secret): void
+    {
+        $this->newLine();
+        $this->line('URLs à configurer côté fournisseur (basées sur APP_URL) :');
+
+        foreach (WebhookUrlBuilder::all($secret) as $provider => $url) {
+            $this->line("  <fg=cyan;options=bold>{$provider}</> : {$url}");
+        }
     }
 
     private function valeurExistante(string $contenu): ?string

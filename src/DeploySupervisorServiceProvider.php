@@ -4,6 +4,7 @@ namespace Bamboguirassy\DeploySupervisor;
 
 use Bamboguirassy\DeploySupervisor\Console\Commands\DeployRunCommand;
 use Bamboguirassy\DeploySupervisor\Console\Commands\WebhookSecretCommand;
+use Bamboguirassy\DeploySupervisor\Console\Commands\WebhookUrlCommand;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Gate;
@@ -35,7 +36,7 @@ class DeploySupervisorServiceProvider extends ServiceProvider
         ], 'deploy-supervisor-views');
 
         if ($this->app->runningInConsole()) {
-            $this->commands([DeployRunCommand::class, WebhookSecretCommand::class]);
+            $this->commands([DeployRunCommand::class, WebhookSecretCommand::class, WebhookUrlCommand::class]);
         }
 
         if (config('deploy-supervisor.routes.enabled', true)) {
