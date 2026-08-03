@@ -122,6 +122,77 @@ return [
 
     'branch' => env('DEPLOY_SUPERVISOR_GIT_BRANCH', 'main'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Webhook (déclenchement automatique sur push)
+    |--------------------------------------------------------------------------
+    |
+    | Désactivé par défaut. Une fois activé, expose
+    | POST {webhook.route.prefix}/{github|gitlab|bitbucket} — sans
+    | auth:sanctum (contrairement aux routes API ci-dessus) : l'authenticité
+    | est vérifiée par signature/token propre à chaque fournisseur, jamais
+    | par session utilisateur. Un push sur la branche `branch` ci-dessus
+    | déclenche un déploiement de TOUTES les cibles configurées ; toute
+    | autre branche est ignorée (réponse 200, aucun déploiement créé).
+    |
+    | ⚠️ `secret` est OBLIGATOIRE dès `enabled = true` : sans lui, aucune
+    | requête n'est acceptée (`verify()` retourne false si le secret est
+    | vide). Générez une valeur aléatoire longue (ex.
+    | `php -r "echo bin2hex(random_bytes(32));"`) et renseignez-la à
+    | l'identique côté fournisseur git (GitHub : "Secret" du webhook ;
+    | GitLab : "Secret token" ; Bitbucket : pas de champ secret natif, à
+    | ajouter en query string dans l'URL du webhook,
+    | ex. .../webhook/bitbucket?secret=xxx).
+    |
+    | Voir le README, section "Webhook", pour la configuration détaillée de
+    | chaque fournisseur.
+    */
+    'webhook' => [
+        'enabled' => env('DEPLOY_SUPERVISOR_WEBHOOK_ENABLED', false),
+        'secret' => env('DEPLOY_SUPERVISOR_WEBHOOK_SECRET'),
+        'route' => [
+            'prefix' => env('DEPLOY_SUPERVISOR_WEBHOOK_ROUTE_PREFIX', 'api/deploiement/webhook'),
+            'middleware' => ['api'],
+        ],
+        'providers' => [
+            'github' => \Bamboguirassy\DeploySupervisor\Support\Webhook\GithubWebhook::class,
+            'gitlab' => \Bamboguirassy\DeploySupervisor\Support\Webhook\GitlabWebhook::class,
+            'bitbucket' => \Bamboguirassy\DeploySupervisor\Support\Webhook\BitbucketWebhook::class,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notifications par email
+    |--------------------------------------------------------------------------
+    |
+    | Désactivées par défaut. Une fois activées, un email est envoyé à la
+    | liste `to` au DÉMARRAGE et à la FIN de chaque déploiement — mailables
+    | mis en queue (`ShouldQueue`) sur la MÊME queue que le pipeline
+    | (`config('deploy-supervisor.queue')`), pas de worker supplémentaire à
+    | faire tourner. L'expéditeur utilise `config('mail.from')` de votre
+    | application (aucune config séparée ici).
+    |
+    | `to` : liste d'adresses, PAS liée aux comptes utilisateurs Laravel —
+    | typiquement une liste ops/astreinte. Séparez plusieurs adresses par
+    | des virgules dans DEPLOY_SUPERVISOR_MAIL_TO.
+    |
+    | `frontend_deploiement_page_url` (optionnel) : si renseignée, chaque
+    | email inclut un lien "{url}/{uid}" vers le détail du déploiement côté
+    | frontend de votre application. Laissez vide si vous n'avez pas de
+    | page dédiée — l'UID reste affiché en texte dans le mail.
+    */
+    'notifications' => [
+        'mail' => [
+            'enabled' => env('DEPLOY_SUPERVISOR_MAIL_ENABLED', false),
+            'to' => array_filter(array_map(
+                'trim',
+                explode(',', (string) env('DEPLOY_SUPERVISOR_MAIL_TO', ''))
+            )),
+            'frontend_deploiement_page_url' => env('DEPLOY_SUPERVISOR_FRONTEND_DEPLOIEMENT_PAGE_URL'),
+        ],
+    ],
+
     'timeout' => (int) env('DEPLOY_SUPERVISOR_TIMEOUT', 900),
 
     /*

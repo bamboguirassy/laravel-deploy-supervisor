@@ -153,7 +153,128 @@ DEPLOY_SUPERVISOR_TIMEOUT=900
 # helper de l'utilisateur ayant cloné le dépôt manuellement.
 DEPLOY_SUPERVISOR_GIT_USERNAME=
 DEPLOY_SUPERVISOR_GIT_TOKEN=
+
+# Optionnel — webhook de déclenchement automatique (voir section "Webhook")
+DEPLOY_SUPERVISOR_WEBHOOK_ENABLED=false
+DEPLOY_SUPERVISOR_WEBHOOK_SECRET=
+
+# Optionnel — notifications email (voir section "Notifications par email")
+DEPLOY_SUPERVISOR_MAIL_ENABLED=false
+DEPLOY_SUPERVISOR_MAIL_TO=
+DEPLOY_SUPERVISOR_FRONTEND_DEPLOIEMENT_PAGE_URL=
 ```
+
+## Webhook (déclenchement automatique sur push)
+
+Désactivé par défaut. Une fois `DEPLOY_SUPERVISOR_WEBHOOK_ENABLED=true` et
+`DEPLOY_SUPERVISOR_WEBHOOK_SECRET` renseigné, le package expose :
+
+```
+POST /api/deploiement/webhook/github
+POST /api/deploiement/webhook/gitlab
+POST /api/deploiement/webhook/bitbucket
+```
+
+Un push sur la branche `DEPLOY_SUPERVISOR_GIT_BRANCH` (par défaut `main`)
+déclenche un déploiement asynchrone (queue) de **toutes** les cibles
+configurées — même comportement que `POST /api/deploiement` sans `cibles`.
+Toute autre branche est ignorée (réponse `200`, aucun déploiement créé).
+
+### Générer un secret fort
+
+```bash
+php artisan deploy-supervisor:webhook-secret
+```
+
+Génère un secret aléatoire de 32 octets et l'écrit directement dans
+`DEPLOY_SUPERVISOR_WEBHOOK_SECRET` dans `.env` (même principe que
+`php artisan key:generate`) — demande confirmation si une valeur existe déjà
+(`--force` pour l'écraser sans confirmation, `--show` pour juste afficher
+une valeur générée sans toucher à `.env`). Renseignez ensuite cette même
+valeur côté fournisseur git (voir ci-dessous). Ne la réutilisez pas
+ailleurs, et ne la commitez jamais.
+
+⚠️ Ces routes ne portent PAS le middleware `auth:sanctum` (un webhook n'a
+pas de session utilisateur) — l'authenticité est vérifiée par
+signature/token propre à chaque fournisseur. **Sans `secret` configuré,
+aucune requête n'est acceptée** (échec fermé).
+
+Deux requêtes identiques (même commit) envoyées à quelques secondes
+d'intervalle — fréquent en cas de retry réseau côté fournisseur — ne
+déclenchent qu'un seul déploiement (déduplication par verrou de 30s sur le
+SHA du commit).
+
+### GitHub
+
+Dans les paramètres du dépôt → *Webhooks* → *Add webhook* :
+
+- **Payload URL** : `https://votre-app.example/api/deploiement/webhook/github`
+- **Content type** : `application/json`
+- **Secret** : la même valeur que `DEPLOY_SUPERVISOR_WEBHOOK_SECRET`
+- **Events** : `Just the push event`
+
+GitHub signe le corps de la requête (HMAC-SHA256) dans le header
+`X-Hub-Signature-256`, vérifié côté package.
+
+### GitLab
+
+Dans le dépôt → *Settings* → *Webhooks* :
+
+- **URL** : `https://votre-app.example/api/deploiement/webhook/gitlab`
+- **Secret token** : la même valeur que `DEPLOY_SUPERVISOR_WEBHOOK_SECRET`
+- **Trigger** : `Push events` (branche configurée uniquement, ou toutes —
+  le filtrage par branche est fait côté package de toute façon)
+
+GitLab renvoie ce secret tel quel dans le header `X-Gitlab-Token`, comparé
+côté package.
+
+### Bitbucket
+
+Bitbucket Cloud ne propose pas de champ "secret" natif pour ses webhooks :
+le secret doit être ajouté directement dans l'URL, en query string.
+
+Dans le dépôt → *Repository settings* → *Webhooks* :
+
+- **URL** : `https://votre-app.example/api/deploiement/webhook/bitbucket?secret=VOTRE_SECRET`
+- **Triggers** : `Repository` → `Push`
+
+⚠️ Le secret apparaît ici en clair dans l'URL configurée côté Bitbucket
+(visible par quiconque a accès aux paramètres du dépôt) — s'assurer que
+l'URL est servie en HTTPS pour qu'il ne transite jamais en clair sur le
+réseau.
+
+## Notifications par email
+
+Désactivées par défaut. Une fois activées, un email est envoyé à une liste
+d'adresses configurée — indépendante des comptes utilisateurs Laravel,
+typiquement une liste ops/astreinte — au **démarrage** et à la **fin** de
+chaque déploiement.
+
+```env
+DEPLOY_SUPERVISOR_MAIL_ENABLED=true
+DEPLOY_SUPERVISOR_MAIL_TO=ops@example.com,cto@example.com
+
+# Optionnel — si renseignée, chaque email inclut un bouton vers cette page
+# (URL + "/" + uid du déploiement) côté frontend de votre application.
+DEPLOY_SUPERVISOR_FRONTEND_DEPLOIEMENT_PAGE_URL=https://votre-app.example/deploiements
+```
+
+- L'expéditeur utilise `config('mail.from')` de votre application (aucune
+  config séparée) — assurez-vous que votre `MAIL_MAILER` est configuré.
+- Les deux emails (démarrage et fin) sont des Mailables `ShouldQueue`,
+  explicitement mis sur la **même queue** que le pipeline
+  (`config('deploy-supervisor.queue')`, `deploy` par défaut) : aucun worker
+  supplémentaire à faire tourner au-delà de celui déjà requis pour le
+  pipeline (voir "Prérequis : file d'attente" ci-dessus).
+- Le mail de fin inclut, pour chaque étape en échec, un extrait de sa
+  sortie console (`output_tail`, 40 dernières lignes) — rien en cas de
+  succès, pour rester lisible.
+- L'échec de l'envoi (SMTP injoignable, config manquante...) est rattrapé
+  et journalisé (`Log::warning`) — ne fait jamais échouer le déploiement
+  lui-même.
+- Contenu personnalisable : les vues sont publiables avec
+  `php artisan vendor:publish --tag=deploy-supervisor-views` (copiées dans
+  `resources/views/vendor/deploy-supervisor/`).
 
 ## Utilisation
 

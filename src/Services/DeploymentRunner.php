@@ -22,11 +22,15 @@ class DeploymentRunner
 {
     private const OUTPUT_TAIL_LINES = 40;
 
+    public function __construct(private readonly DeploymentNotifier $notifier) {}
+
     public function run(Deploiement $deploiement): void
     {
         $logPath = storage_path('logs/deploy-supervisor/' . $deploiement->uid . '.log');
         File::ensureDirectoryExists(dirname($logPath));
         $deploiement->log_path = $logPath;
+
+        $this->notifier->demarrage($deploiement);
 
         $resultat = [];
         $globalStatut = 'succes';
@@ -53,6 +57,8 @@ class DeploymentRunner
             statut: $globalStatut,
             termineLe: $deploiement->termine_le->toIso8601String(),
         ));
+
+        $this->notifier->fin($deploiement);
     }
 
     private function executerCibles(Deploiement $deploiement, array &$resultat, string &$globalStatut, string $logPath): void
