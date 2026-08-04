@@ -17,6 +17,25 @@ commande build/lint/test à lancer ici — la vérification se fait par lecture
 de code et, si besoin, en installant le package dans une app Laravel hôte
 réelle pour un test d'intégration manuel.
 
+### Discipline de release — ne jamais oublier de tag
+
+Ce dépôt est distribué via Packagist, qui ne republie que sur push d'un
+**tag** (voir le hook GitHub configuré sur le repo) — pas sur simple push de
+`main`. Un commit mergé sur `main` sans tag est invisible pour tout
+utilisateur du package (`composer update` ne trouve rien de neuf), même si
+la contrainte semver (`^1.x`) l'autoriserait. C'est exactement ce qui s'est
+produit avec le webhook/notifications (`500d6a3`), resté untagged pendant
+plusieurs commits avant `v1.3.0`.
+
+**Donc : après tout commit qui change le comportement du package (feature,
+fix, breaking change) mergé sur `main`, proposer à l'utilisateur de créer
+et pousser un tag semver** (`git tag -a vX.Y.Z -m "..."` puis `git push
+origin vX.Y.Z`), en respectant SemVer (patch = fix, minor = feature
+rétrocompatible, major = breaking change) — et mettre à jour
+[`CHANGELOG.md`](CHANGELOG.md) en conséquence. Ne pas le faire
+silencieusement : demander confirmation avant de pousser un tag (action peu
+réversible, visible publiquement sur Packagist).
+
 ## Architecture
 
 Deux couches bien séparées, à ne pas mélanger :
