@@ -67,10 +67,22 @@ class WebhookSecretCommand extends Command
     private function afficherUrls(string $secret): void
     {
         $this->newLine();
-        $this->line('URLs à configurer côté fournisseur (basées sur APP_URL) :');
+        $this->line('URLs à configurer côté fournisseur (basées sur APP_URL), une par cible et par dépôt :');
 
-        foreach (WebhookUrlBuilder::all($secret) as $provider => $url) {
-            $this->line("  <fg=cyan;options=bold>{$provider}</> : {$url}");
+        $urlsParCible = WebhookUrlBuilder::all($secret);
+
+        if (empty($urlsParCible)) {
+            $this->comment("Aucune cible configurée (config('deploy-supervisor.targets')).");
+
+            return;
+        }
+
+        foreach ($urlsParCible as $target => $urls) {
+            $this->line("  <fg=yellow;options=bold>{$target}</>");
+
+            foreach ($urls as $provider => $url) {
+                $this->line("    <fg=cyan;options=bold>{$provider}</> : {$url}");
+            }
         }
     }
 

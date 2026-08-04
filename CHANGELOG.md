@@ -4,6 +4,18 @@ Toutes les modifications notables de ce package sont documentées ici.
 Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/),
 versionnement [SemVer](https://semver.org/lang/fr/).
 
+## [1.4.0] - 2026-08-04
+
+### Modifié
+- **BREAKING CHANGE** : l'URL du webhook porte désormais la cible à
+  déployer (`POST {prefix}/webhook/{provider}/{target}` au lieu de
+  `POST {prefix}/webhook/{provider}`). Permet d'avoir un dépôt git distinct
+  par cible (ex. `backend` et `frontend` séparés) : chaque dépôt reçoit sa
+  propre URL, pointant uniquement vers sa cible — un push sur ce dépôt ne
+  déclenche plus le déploiement de *toutes* les cibles configurées.
+  `deploy-supervisor:webhook-url` accepte maintenant un argument optionnel
+  `{target?}` et affiche une URL par cible × fournisseur.
+
 ## [1.3.0] - 2026-08-04
 
 ### Ajouté

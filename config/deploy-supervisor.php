@@ -128,12 +128,18 @@ return [
     |--------------------------------------------------------------------------
     |
     | Désactivé par défaut. Une fois activé, expose
-    | POST {webhook.route.prefix}/{github|gitlab|bitbucket} — sans
+    | POST {webhook.route.prefix}/{github|gitlab|bitbucket}/{target} — sans
     | auth:sanctum (contrairement aux routes API ci-dessus) : l'authenticité
     | est vérifiée par signature/token propre à chaque fournisseur, jamais
-    | par session utilisateur. Un push sur la branche `branch` ci-dessus
-    | déclenche un déploiement de TOUTES les cibles configurées ; toute
-    | autre branche est ignorée (réponse 200, aucun déploiement créé).
+    | par session utilisateur. La CIBLE à déployer est portée par l'URL
+    | elle-même ({target} doit être une clé de `targets` ci-dessous) — pas
+    | déduite du dépôt émetteur du payload. Ça permet d'avoir un dépôt git
+    | différent par cible (backend/frontend...) : chaque dépôt reçoit sa
+    | propre URL de webhook pointant vers sa cible. Un push sur la branche
+    | `branch` ci-dessus déclenche le déploiement de cette seule cible ;
+    | toute autre branche est ignorée (réponse 200, aucun déploiement créé).
+    | Récupérer toutes les URLs (une par cible × fournisseur) :
+    | `php artisan deploy-supervisor:webhook-url`.
     |
     | ⚠️ `secret` est OBLIGATOIRE dès `enabled = true` : sans lui, aucune
     | requête n'est acceptée (`verify()` retourne false si le secret est
@@ -142,7 +148,7 @@ return [
     | l'identique côté fournisseur git (GitHub : "Secret" du webhook ;
     | GitLab : "Secret token" ; Bitbucket : pas de champ secret natif, à
     | ajouter en query string dans l'URL du webhook,
-    | ex. .../webhook/bitbucket?secret=xxx).
+    | ex. .../webhook/bitbucket/backend?secret=xxx).
     |
     | Voir le README, section "Webhook", pour la configuration détaillée de
     | chaque fournisseur.

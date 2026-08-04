@@ -108,18 +108,24 @@ la Gate `config('deploy-supervisor.gate')`.
 ### Webhook et notifications (déclenchement/observabilité, ajoutés après le cœur du pipeline)
 
 - **Webhook** (`src/Http/Controllers/WebhookController.php`,
-  `src/Support/Webhook/*`) — `POST {prefix}/webhook/{github|gitlab|bitbucket}`,
+  `src/Support/Webhook/*`) — `POST {prefix}/webhook/{github|gitlab|bitbucket}/{target}`,
   désactivé par défaut (`webhook.enabled`), volontairement SANS
   `auth:sanctum` (authenticité vérifiée par signature/token propre à chaque
   fournisseur, résolu par nom de classe via `webhook.providers` — même
-  pattern que `declenche_par_formatter`). Ne déclenche que si la branche
-  pushée correspond à `config('deploy-supervisor.branch')` ; dédup par
-  `Cache::lock()` sur le SHA du commit. `WebhookUrlBuilder`
+  pattern que `declenche_par_formatter`). **La cible à déployer est portée
+  par l'URL elle-même** (`{target}` doit être une clé de
+  `config('deploy-supervisor.targets')`, sinon 404) — délibérément PAS
+  déduite du dépôt émetteur du payload, pour permettre un dépôt git
+  différent par cible (backend/frontend séparés) sans avoir à parser/matcher
+  le repository du payload. Ne déclenche que cette cible, et seulement si la
+  branche pushée correspond à `config('deploy-supervisor.branch')` ; dédup
+  par `Cache::lock()` sur le couple (SHA du commit, cible). `WebhookUrlBuilder`
   (`src/Support/Webhook/WebhookUrlBuilder.php`) construit l'URL complète de
-  chaque fournisseur à partir de `APP_URL` (via `url()`) — utilisé par les
-  commandes `deploy-supervisor:webhook-secret` et
-  `deploy-supervisor:webhook-url`, pour éviter à l'utilisateur de la
-  reconstruire à la main.
+  chaque cible × fournisseur à partir de `APP_URL` (via `url()`) — utilisé
+  par les commandes `deploy-supervisor:webhook-secret` et
+  `deploy-supervisor:webhook-url` (celle-ci acceptant un argument `{target?}`
+  optionnel pour filtrer), pour éviter à l'utilisateur de la reconstruire à
+  la main.
 - **Notifications email** (`src/Services/DeploymentNotifier.php`,
   `src/Mail/*`, `resources/views/mail/*`) — désactivées par défaut
   (`notifications.mail.enabled`), envoyées au démarrage et à la fin de

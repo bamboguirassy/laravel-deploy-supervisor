@@ -288,28 +288,35 @@ DEPLOY_SUPERVISOR_WEBHOOK_SECRET=
 DEPLOY_SUPERVISOR_WEBHOOK_ROUTE_PREFIX=api/deploiement/webhook
 ```
 
-Une fois activé, le package expose :
+Une fois activé, le package expose une route par fournisseur **et par
+cible** (`{target}` doit correspondre à une clé de
+`config('deploy-supervisor.targets')`) :
 
 ```
-POST /api/deploiement/webhook/github
-POST /api/deploiement/webhook/gitlab
-POST /api/deploiement/webhook/bitbucket
+POST /api/deploiement/webhook/github/{target}
+POST /api/deploiement/webhook/gitlab/{target}
+POST /api/deploiement/webhook/bitbucket/{target}
 ```
+
+La cible à déployer est portée par l'URL elle-même, pas déduite du dépôt
+émetteur du payload — ce qui permet d'avoir **un dépôt git différent par
+cible** (ex. un dépôt `backend` et un dépôt `frontend` séparés) : chaque
+dépôt reçoit sa propre URL de webhook, pointant directement vers sa cible.
 
 Un push sur la branche `DEPLOY_SUPERVISOR_GIT_BRANCH` (par défaut `main`)
-déclenche un déploiement asynchrone (queue) de **toutes** les cibles
-configurées — même comportement que `POST /api/deploiement` sans `cibles`.
-Toute autre branche est ignorée (réponse `200`, aucun déploiement créé).
+déclenche un déploiement asynchrone (queue) de **cette seule cible** — même
+comportement que `POST /api/deploiement` avec `cibles: ["backend"]`. Toute
+autre branche est ignorée (réponse `200`, aucun déploiement créé).
 
 ⚠️ Ces routes ne portent PAS le middleware `auth:sanctum` (un webhook n'a
 pas de session utilisateur) — l'authenticité est vérifiée par
 signature/token propre à chaque fournisseur. **Sans `secret` configuré,
 aucune requête n'est acceptée** (échec fermé).
 
-Deux requêtes identiques (même commit) envoyées à quelques secondes
-d'intervalle — fréquent en cas de retry réseau côté fournisseur — ne
-déclenchent qu'un seul déploiement (déduplication par verrou de 30s sur le
-SHA du commit).
+Deux requêtes identiques (même commit, même cible) envoyées à quelques
+secondes d'intervalle — fréquent en cas de retry réseau côté fournisseur —
+ne déclenchent qu'un seul déploiement (déduplication par verrou de 30s sur
+le couple SHA du commit / cible).
 
 ### Générer un secret fort
 
@@ -329,15 +336,22 @@ complète de chaque fournisseur (voir ci-dessous) prête à copier.
 
 ```bash
 php artisan deploy-supervisor:webhook-url
+
+# Limiter l'affichage à une seule cible
+php artisan deploy-supervisor:webhook-url backend
 ```
 
-Affiche l'URL complète de chaque fournisseur, construite à partir de
-`APP_URL` (donc jamais à reconstruire à la main) :
+Affiche l'URL complète de chaque cible × fournisseur, construite à partir
+de `APP_URL` (donc jamais à reconstruire à la main) :
 
 ```
-github    : https://votre-app.example/api/deploiement/webhook/github
-gitlab    : https://votre-app.example/api/deploiement/webhook/gitlab
-bitbucket : https://votre-app.example/api/deploiement/webhook/bitbucket?secret=...
+backend
+  github    : https://votre-app.example/api/deploiement/webhook/github/backend
+  gitlab    : https://votre-app.example/api/deploiement/webhook/gitlab/backend
+  bitbucket : https://votre-app.example/api/deploiement/webhook/bitbucket/backend?secret=...
+frontend
+  github    : https://votre-app.example/api/deploiement/webhook/github/frontend
+  ...
 ```
 
 Pour Bitbucket, le secret est directement inclus dans l'URL affichée (voir
@@ -345,11 +359,19 @@ la section Bitbucket ci-dessous, qui explique pourquoi). Assurez-vous que
 `APP_URL` (dans `.env`) correspond bien à l'URL publique réelle de votre
 application avant de copier ces URLs chez le fournisseur.
 
+**Configuration multi-dépôts** : si `backend` et `frontend` vivent dans deux
+dépôts git distincts, configurez le webhook de chaque dépôt avec l'URL
+correspondant à sa propre cible (le dépôt `backend` reçoit l'URL
+`.../webhook/{provider}/backend`, le dépôt `frontend` reçoit
+`.../webhook/{provider}/frontend`) — un push sur l'un ne déclenchera que sa
+cible, jamais l'autre.
+
 ### GitHub
 
 Dans les paramètres du dépôt → *Webhooks* → *Add webhook* :
 
-- **Payload URL** : `https://votre-app.example/api/deploiement/webhook/github`
+- **Payload URL** : `https://votre-app.example/api/deploiement/webhook/github/{target}`
+  (remplacer `{target}` par la cible correspondant à ce dépôt, ex. `backend`)
 - **Content type** : `application/json`
 - **Secret** : la même valeur que `DEPLOY_SUPERVISOR_WEBHOOK_SECRET`
 - **Events** : `Just the push event`
@@ -361,7 +383,8 @@ GitHub signe le corps de la requête (HMAC-SHA256) dans le header
 
 Dans le dépôt → *Settings* → *Webhooks* :
 
-- **URL** : `https://votre-app.example/api/deploiement/webhook/gitlab`
+- **URL** : `https://votre-app.example/api/deploiement/webhook/gitlab/{target}`
+  (remplacer `{target}` par la cible correspondant à ce dépôt)
 - **Secret token** : la même valeur que `DEPLOY_SUPERVISOR_WEBHOOK_SECRET`
 - **Trigger** : `Push events` (branche configurée uniquement, ou toutes —
   le filtrage par branche est fait côté package de toute façon)
@@ -376,7 +399,8 @@ le secret doit être ajouté directement dans l'URL, en query string.
 
 Dans le dépôt → *Repository settings* → *Webhooks* :
 
-- **URL** : `https://votre-app.example/api/deploiement/webhook/bitbucket?secret=VOTRE_SECRET`
+- **URL** : `https://votre-app.example/api/deploiement/webhook/bitbucket/{target}?secret=VOTRE_SECRET`
+  (remplacer `{target}` par la cible correspondant à ce dépôt)
 - **Triggers** : `Repository` → `Push`
 
 ⚠️ Le secret apparaît ici en clair dans l'URL configurée côté Bitbucket
