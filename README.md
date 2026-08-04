@@ -30,7 +30,7 @@ Disponible sur [Packagist](https://packagist.org/packages/bamboguirassy/laravel-
 (mise à jour automatique à chaque push/tag via le hook GitHub) :
 
 ```bash
-composer require bamboguirassy/laravel-deploy-supervisor:^1.2
+composer require bamboguirassy/laravel-deploy-supervisor
 ```
 
 Publier la config et la migration :
@@ -43,9 +43,9 @@ php artisan migrate
 
 ## Mise à jour
 
-⚠️ **`composer require ...:^1.2` (ou toute contrainte `^1.x`) n'entraîne PAS
-automatiquement la récupération de la dernière version 1.x à chaque
-déploiement.** Si un `composer.lock` existe déjà avec une ancienne version
+⚠️ **La contrainte `^1.x` écrite dans votre `composer.json` (générée par
+`composer require` ci-dessus) n'entraîne PAS automatiquement la
+récupération de la dernière version 1.x à chaque déploiement.** Si un `composer.lock` existe déjà avec une ancienne version
 verrouillée, `composer install` réutilise cette version — même si votre
 contrainte l'autoriserait à prendre plus récent. Pour forcer la mise à jour
 vers la dernière version disponible sur Packagist (voir le
@@ -67,7 +67,7 @@ php artisan config:clear && php artisan config:cache
   relancer `queue:work`) : sinon il continue d'exécuter l'ancien code
   chargé en mémoire.
 
-Rappel semver : `^1.2` autorise toute version `1.x` la plus récente
+Rappel semver : `^1.x` autorise toute version `1.x` la plus récente
 (ex. `1.2.2`, `1.3.0`...) mais jamais un futur `2.0.0` (breaking change).
 
 ## Prérequis : file d'attente (Horizon ou `queue:work`)
